@@ -1,0 +1,3 @@
+[submodule "NBT"]
+	path = NBT
+	url = ../../OpenBagTwo/NBT.git
