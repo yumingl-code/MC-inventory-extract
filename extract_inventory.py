@@ -147,7 +147,7 @@ class Inventory:
                     result['minecraft:bundle_contents'].append(item)
             elif tag_key=='BlockEntityTag' and set(tag['BlockEntityTag'].keys())=={'id'}:
                 pass
-            elif tag_key=='BlockEntityTag' and (set(tag['BlockEntityTag'].keys())>={'id','Items'} and set(tag['BlockEntityTag'].keys())<={'id','Items', 'display', 'Display'}):
+            elif tag_key=='BlockEntityTag' and (set(tag['BlockEntityTag'].keys())>={'Items'} and set(tag['BlockEntityTag'].keys())<={'id','Items', 'display', 'Display'}):
                 result['minecraft:container']=nbt.TAG_List(nbt.TAG_Compound)
                 item:nbt.TAG_Compound
                 for item in tag['BlockEntityTag']['Items']:
@@ -265,7 +265,7 @@ class Inventory:
                 if 'minecraft:bucket_entity_data' not in result:
                     result['minecraft:bucket_entity_data']=nbt.TAG_Compound()
                 result['minecraft:bucket_entity_data'][tag_key]=tag[tag_key]
-            elif tag_key in ['translatable', 'wand', 'type', 'LastUsed', 'Decorations', 'Charged', 'HideFlags', 'CustomSound', 'IsStaticCustomSound', 'CustomSoundRange', 'SavedPose', 'LodestoneTracked','LodestonePos','UndoStates','datapack','RedoStates', 'StatesUUID', 'NameFormat', 'CustomRoleplayData', 'CustomModelData', 'Repeat', 'resolved']:
+            elif tag_key in ['filtered_title', 'filtered_pages', 'translatable', 'wand', 'type', 'LastUsed', 'Decorations', 'Charged', 'HideFlags', 'CustomSound', 'IsStaticCustomSound', 'CustomSoundRange', 'SavedPose', 'LodestoneTracked','LodestonePos','UndoStates','datapack','RedoStates', 'StatesUUID', 'NameFormat', 'CustomRoleplayData', 'CustomModelData', 'Repeat', 'resolved']:
                 pass
             else:
                 raise ValueError(f'Unknown tag keys {','.join(tag.keys())}')
@@ -483,12 +483,15 @@ for region_file, regionx, regionz in iterate_regions(options.basedir, 'region', 
             if nbt_data is None:
                 continue
             F=nbt.NBTFile(buffer=io.BytesIO(nbt_data))
+            if 'Level' in F.keys():
+                F=F['Level']
             assert F.get('xPos').value==chunkx
             assert F.get('zPos').value==chunkz
-            assert F.get('yPos').value in [-4, 0]
-            if F.get('Status').value not in ['minecraft:full']:
+            if 'yPos' in F.keys():
+                assert F.get('yPos').value in [-4, 0]
+            if F.get('Status').value not in ['minecraft:full','full']:
                 continue
-            block_entities=F['block_entities']
+            block_entities=F['block_entities'] if 'block_entities' in F else F['TileEntities']
             for block_entity in block_entities:
                 pos=(block_entity['x'].value,block_entity['y'].value,block_entity['z'].value)
                 if 'Items' in block_entity.keys():
