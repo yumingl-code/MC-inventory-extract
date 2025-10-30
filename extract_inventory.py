@@ -1,6 +1,8 @@
 import math
 import os
 import re
+
+import pandas as pd
 from mca import Mca
 from NBT.nbt import nbt
 import io
@@ -556,6 +558,11 @@ else:
 
 Fout = inventory_collection.get_nbt()
 Fout.write_file(options.output_file)
+
+counter_2_pairs=list(counter_2.items())
+counter_2_pairs.sort(key=lambda x:(x[1],x[0]), reverse=True)
+final_stats=pd.DataFrame({'item': [item for item, count in counter_2_pairs], 'count': [count for item, count in counter_2_pairs]})
+final_stats.to_csv(options.output_file+"_stats.csv", index=False)
 
 # block_size=100
 # for batchid in range(math.ceil(len(inventory_collection.inventories)/block_size)):
