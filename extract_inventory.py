@@ -24,6 +24,12 @@ class Inventory:
         if not isinstance(pos_x,int) or not isinstance(pos_y,int) or not isinstance(pos_z,int):
             raise TypeError
         for item in items:
+            if 'Count' in item.keys() and ['count'] not in item.keys():
+                item['count']=item['Count']
+                # do not use item.pop('Count'), it should disappear when assigned
+            if 'tag' in item.keys():
+                item['components']=Inventory.tag_to_component(item['tag'])
+                item.pop('tag')
             if set(item.keys())!={'Slot','id','count'} and set(item.keys())!={'Slot','id','count','components'}:
                 raise ValueError()
             if not isinstance(slotid:=item['Slot'].value,int) or slotid<0 or slotid>=27:
@@ -84,7 +90,188 @@ class Inventory:
             self.item_id=None
             self.item_count=None
             self.possible_farm_collection=None
-            
+    
+    MobEffectIdFixDictionary={
+        2:"minecraft:slowness",
+        3:"minecraft:haste",
+        4:"minecraft:mining_fatigue",
+        5:"minecraft:strength",
+        6:"minecraft:instant_health",
+        7:"minecraft:instant_damage",
+        8:"minecraft:jump_boost",
+        9:"minecraft:nausea",
+        10:"minecraft:regeneration",
+        11:"minecraft:resistance",
+        12:"minecraft:fire_resistance",
+        13:"minecraft:water_breathing",
+        14:"minecraft:invisibility",
+        15:"minecraft:blindness",
+        16:"minecraft:night_vision",
+        17:"minecraft:hunger",
+        18:"minecraft:weakness",
+        19:"minecraft:poison",
+        20:"minecraft:wither",
+        21:"minecraft:health_boost",
+        22:"minecraft:absorption",
+        23:"minecraft:saturation",
+        24:"minecraft:glowing",
+        25:"minecraft:levitation",
+        26:"minecraft:luck",
+        27:"minecraft:unluck",
+        28:"minecraft:slow_falling",
+        29:"minecraft:conduit_power",
+        30:"minecraft:dolphins_grace",
+        31:"minecraft:bad_omen",
+        32:"minecraft:hero_of_the_village",
+        33:"minecraft:darkness",
+    }
+    fixFireworkExplosion={
+        None: 'small_ball',
+        0: 'small_ball',
+        1: 'large_ball',
+        2: 'star',
+        3: 'creeper',
+        4: 'burst',
+    }
+    @staticmethod
+    def tag_to_component(tag:nbt.TAG_Compound) -> nbt.TAG_Compound:
+        result=nbt.TAG_Compound()
+        for tag_key in tag.keys():
+            if tag_key=='Items':
+                result['minecraft:bundle_contents']=nbt.TAG_List(nbt.TAG_Compound)
+                item:nbt.TAG_Compound
+                for item in tag['Items']:
+                    if 'tag' in item.keys():
+                        item['components']=Inventory.tag_to_component(item['tag'])
+                        item.pop('tag')
+                    result['minecraft:bundle_contents'].append(item)
+            elif tag_key=='BlockEntityTag' and set(tag['BlockEntityTag'].keys())=={'id'}:
+                pass
+            elif tag_key=='BlockEntityTag' and (set(tag['BlockEntityTag'].keys())>={'id','Items'} and set(tag['BlockEntityTag'].keys())<={'id','Items', 'display', 'Display'}):
+                result['minecraft:container']=nbt.TAG_List(nbt.TAG_Compound)
+                item:nbt.TAG_Compound
+                for item in tag['BlockEntityTag']['Items']:
+                    item_component=nbt.TAG_Compound()
+                    item_component['item']=nbt.TAG_Compound()
+                    item_component['item']['id']=item['id']
+                    item_component['item']['count']=item['Count']
+                    item_component['slot']=item['Slot']
+                    if 'tag' in item.keys():
+                        item['components']=Inventory.tag_to_component(item['tag'])
+                        item.pop('tag')
+                    result['minecraft:container'].append(item_component)
+            elif tag_key=='BlockEntityTag' and (set(tag['BlockEntityTag'].keys())>={'Patterns'} and set(tag['BlockEntityTag'].keys())<={'id','Patterns', 'Base'}):
+                pass
+            elif tag_key=='BlockEntityTag' and set(tag['BlockEntityTag'].keys())=={'sherds'}:
+                result['minecraft:pot_decorations']=tag['BlockEntityTag']['sherds']
+            elif tag_key=='BlockEntityTag' and (set(tag['BlockEntityTag'].keys())=={'id','Bees'} or set(tag['BlockEntityTag'].keys())=={'Bees'}):
+                result['minecraft:bees']=tag['BlockEntityTag']['Bees']
+            elif tag_key=='BlockEntityTag' and set(tag['BlockEntityTag'].keys())=={'note_block_sound'}:
+                result['minecraft:note_block_sound']=tag['BlockEntityTag']['note_block_sound']
+            elif tag_key=='BlockStateTag':
+                result['minecraft:block_state']=nbt.TAG_Compound()
+                for k,v in tag['BlockStateTag'].items():
+                    result['minecraft:block_state'][k]=v
+            elif tag_key=='SkullOwner' and set(tag['SkullOwner'].keys())=={'Id','Properties','Name'}:
+                result['minecraft:profile']=nbt.TAG_String(tag['SkullOwner']['Name'].value)
+            elif tag_key=='SkullOwner' and set(tag['SkullOwner'].keys())=={'Id','Properties'}:
+                result['minecraft:profile']=nbt.TAG_Compound()
+                result['minecraft:profile']['id']=tag['SkullOwner']['Id']
+            elif tag_key=='Trim':
+                result['minecraft:trim']=nbt.TAG_Compound()
+                result['minecraft:trim']['pattern']=tag['Trim']['pattern']
+                result['minecraft:trim']['material']=tag['Trim']['material']
+            elif tag_key=='Damage':
+                result['minecraft:damage']=nbt.TAG_Int(tag['Damage'].value)
+            elif tag_key=='Enchantments':
+                result['minecraft:enchantments']=nbt.TAG_Compound()
+                for ench in tag['Enchantments']:
+                    if not ench:
+                        pass
+                    else:
+                        result['minecraft:enchantments'][ench['id'].value]=nbt.TAG_Int(ench['lvl'].value)
+            elif tag_key=='StoredEnchantments':
+                result['minecraft:stored_enchantments']=nbt.TAG_Compound()
+                for ench in tag['StoredEnchantments']:
+                    result['minecraft:stored_enchantments'][ench['id'].value]=nbt.TAG_Int(ench['lvl'].value)
+            elif tag_key=='Effects':
+                result['minecraft:suspicious_stew_effects']=nbt.TAG_List(nbt.TAG_Compound)
+                for effect in tag['Effects']:
+                    effect_component=nbt.TAG_Compound()
+                    effect_component['duration']=nbt.TAG_Int(effect['EffectDuration'].value)
+                    effect_component['id']=nbt.TAG_String(Inventory.MobEffectIdFixDictionary[effect['EffectId'].value])
+                    result['minecraft:suspicious_stew_effects'].append(effect_component)
+            elif tag_key=='ChargedProjectiles':
+                result['minecraft:charged_projectiles']=nbt.TAG_List(nbt.TAG_Compound)
+                for proj in tag['ChargedProjectiles']:
+                    result['minecraft:charged_projectiles'].append(proj)
+            elif tag_key=='map':
+                result['minecraft:map']=nbt.TAG_Int(tag['map'].value)
+            # elif tag_key=='display' and set(tag['display'].keys())=={'Name'}:
+            #     result['minecraft:custom_name']=nbt.TAG_String(tag['display']['Name'].value)
+            elif tag_key=='display' and set(tag['display'].keys())<={'Name','Lore','color','MapColor'}:
+                if 'Name' in tag['display'].keys():
+                    result['minecraft:custom_name']=nbt.TAG_String(tag['display']['Name'].value)
+                if 'Lore' in tag['display'].keys():
+                    result['minecraft:lore']=tag['display']['Lore']
+                if 'color' in tag['display'].keys():
+                    result['minecraft:dyed_color']=tag['display']['color']
+                if 'MapColor' in tag['display'].keys():
+                    result['minecraft:map_color']=tag['display']['MapColor']
+            elif tag_key=='RepairCost':
+                result['minecraft:repair_cost']=nbt.TAG_Int(tag['RepairCost'].value)
+            elif tag_key=='instrument':
+                result['minecraft:instrument']=nbt.TAG_String(tag['instrument'].value)
+            elif tag_key=='Potion':
+                result['minecraft:potion_contents']=nbt.TAG_Compound()
+                result['minecraft:potion_contents']['potion']=nbt.TAG_String(tag['Potion'].value)
+            elif tag_key=='pages':
+                if 'author' not in tag.keys():
+                    result['minecraft:writable_book_content']=nbt.TAG_Compound()
+                    result['minecraft:writable_book_content']['pages']=tag['pages']
+                else:
+                    if 'minecraft:written_book_content' not in result:
+                        result['minecraft:written_book_content']=nbt.TAG_Compound()
+                    result['minecraft:written_book_content']['pages']=tag['pages']
+            elif tag_key=='author':
+                if 'minecraft:written_book_content' not in result:
+                    result['minecraft:written_book_content']=nbt.TAG_Compound()
+                result['minecraft:written_book_content']['author']=tag['author']
+            elif tag_key=='title':
+                if 'minecraft:written_book_content' not in result:
+                    result['minecraft:written_book_content']=nbt.TAG_Compound()
+                result['minecraft:written_book_content']['title']=tag['title']
+            elif tag_key=='generation':
+                if 'minecraft:written_book_content' not in result:
+                    result['minecraft:written_book_content']=nbt.TAG_Compound()
+                result['minecraft:written_book_content']['generation']=nbt.TAG_Int(tag['generation'].value)
+            elif tag_key=='LodestoneDimension':
+                result['minecraft:lodestone_tracker']=nbt.TAG_Compound()
+                result['minecraft:lodestone_tracker']['target']=nbt.TAG_Compound()
+                result['minecraft:lodestone_tracker']['target']['dimension']=tag['LodestoneDimension']
+            elif tag_key=='Explosion':
+                result['minecraft:fireworks_explosion']=nbt.TAG_Compound()
+                result['minecraft:fireworks_explosion']['shape']=nbt.TAG_String(Inventory.fixFireworkExplosion[tag['Explosion']['Type'].value])
+                result['minecraft:fireworks_explosion']['colors']=nbt.TAG_List(nbt.TAG_Int)
+                colors:nbt.TAG_Int_Array=tag['Explosion']['Colors']
+                for color in colors.value:
+                    result['minecraft:fireworks_explosion']['colors'].append(nbt.TAG_Int(color))
+            elif tag_key=='Fireworks':
+                result['minecraft:fireworks']=nbt.TAG_Compound()
+                result['minecraft:fireworks']['flight_duration']=nbt.TAG_Byte(tag['Fireworks']['Flight'].value)
+                if tag['Fireworks'].get('Explosions'):
+                    result['minecraft:fireworks']['explosions']=tag['Fireworks']['Explosions']
+            elif tag_key in ["NoAI", "Silent", "NoGravity", "Glowing", "Invulnerable", "Health", "Age", "Variant", "HuntingCooldown", "BucketVariantTag"]:
+                if 'minecraft:bucket_entity_data' not in result:
+                    result['minecraft:bucket_entity_data']=nbt.TAG_Compound()
+                result['minecraft:bucket_entity_data'][tag_key]=tag[tag_key]
+            elif tag_key in ['translatable', 'wand', 'type', 'LastUsed', 'Decorations', 'Charged', 'HideFlags', 'CustomSound', 'IsStaticCustomSound', 'CustomSoundRange', 'SavedPose', 'LodestoneTracked','LodestonePos','UndoStates','datapack','RedoStates', 'StatesUUID', 'NameFormat', 'CustomRoleplayData', 'CustomModelData', 'Repeat', 'resolved']:
+                pass
+            else:
+                raise ValueError(f'Unknown tag keys {','.join(tag.keys())}')
+                # print(tag.pretty_tree())
+            # warnings.warn('Not raising errors for unknown tags')
+        return result
     
     @staticmethod
     def create_single(container_type:str, item:nbt.TAG_Compound, pos, set_in_field):
@@ -115,6 +302,9 @@ def count_items(inventories:list[Inventory]):
             if (comp:=item.get('components')) and (cont:=comp.get('minecraft:container')):
                 for subitem in cont:
                     items_count.update({subitem['item']['id'].value:subitem['item']['count'].value})
+            if (tag:=item.get('tag')) and (bet:=tag.get('BlockEntityTag')) and (items:=bet.get('Items')):
+                for subitem in items:
+                    items_count.update({subitem['id'].value:subitem['Count'].value})
     return items_count
 
 def iterate_regions(basedir:str, section:str, overworld:bool, nether:bool, end:bool):
