@@ -353,7 +353,13 @@ class InventoryCollection():
                         for item in cont:
                             item['item']['Slot']=nbt.TAG_Byte(item['slot'].value)
                             items.append(item['item'])
-                    new_inventories.append(Inventory(boxitem['id'].value, items, inv.pos, is_shulkerbox=True))
+                    if boxitem['count'].value>1:
+                        if items:
+                            raise ValueError('stacked non-empty box')
+                        else:
+                            new_inventories.extend([Inventory(boxitem['id'].value, items, inv.pos, is_shulkerbox=True) for i in range(boxitem['count'].value)])
+                    else:
+                        new_inventories.append(Inventory(boxitem['id'].value, items, inv.pos, is_shulkerbox=True))
             if inv.items:
                 new_inventories.append(inv)
         self.inventories = new_inventories
