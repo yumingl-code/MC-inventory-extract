@@ -17,12 +17,12 @@ class Inventory:
     """
     def __init__(self, container_type:str, items:list[nbt.TAG_Compound], pos:tuple[int,int,int], is_single_slot=False, is_shulkerbox=False, set_in_field=None):
         if not isinstance(container_type, str):
-            raise TypeError
+            raise TypeError()
         if not isinstance(items, list):
-            raise TypeError
+            raise TypeError()
         pos_x,pos_y,pos_z=pos
         if not isinstance(pos_x,int) or not isinstance(pos_y,int) or not isinstance(pos_z,int):
-            raise TypeError
+            raise TypeError()
         for item in items:
             if 'Count' in item.keys() and ['count'] not in item.keys():
                 item['count']=item['Count']
@@ -452,7 +452,7 @@ class InventoryCollection():
                 for item in inv.items:
                     block_data['nbt']['Items'].append(item)
             else:
-                block_data['nbt'][inv.set_in_field]=item
+                block_data['nbt'][inv.set_in_field]=inv.items[0]
             structure_file['blocks'].append(block_data)
         structure_file['entities']=nbt.TAG_List(nbt.TAG_Compound)
         return structure_file
@@ -499,7 +499,10 @@ for region_file, regionx, regionz in iterate_regions(options.basedir, 'region', 
                 if 'Book' in block_entity.keys():
                     inventories.append(Inventory.create_single(block_entity['id'].value, block_entity['Book'], pos, 'Book'))
                 if 'item' in block_entity.keys():
-                    inventories.append(Inventory.create_single(block_entity['id'].value, block_entity['item'], pos, 'item'))
+                    container_type=block_entity['id'].value
+                    if container_type=='minecraft:brushable_block':
+                        container_type='minecraft:suspicious_sand'
+                    inventories.append(Inventory.create_single(container_type, block_entity['item'], pos, 'item'))
 
 for region_file, regionx, regionz in iterate_regions(options.basedir, 'entities', options.overworld, options.nether, options.end):
     region = Mca(region_file)
